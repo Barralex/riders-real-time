@@ -45,7 +45,7 @@ app.post("/updates", (req, res) => {
       });
   } else if (req.headers["x-amz-sns-message-type"] === "Notification") {
     clients.forEach((client) =>
-      client.write(`data: ${JSON.stringify(payload.Message)}\n\n`)
+        client.write(`data: ${payload.Message}\n\n`)
     );
   }
   res.status(200).end();
