@@ -1,11 +1,91 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mi Aplicación Express</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real Time Tracking</title>
+    <!-- Include Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <style>
+        #map {
+            width: 100%;
+            height: 600px;
+        }
+    </style>
 </head>
 <body>
-    <h1>¡Estoy funcionando!</h1>
+    <!-- Map container -->
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script>
+        // Initialize the map centered on Pocitos, Uruguay
+        const map = L.map('map').setView([-34.9085, -56.1504], 15);
+
+        // Add OpenStreetMap tiles to the map
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap contributors',
+        }).addTo(map);
+
+        // Establish a connection to the SSE endpoint
+        const eventSource = new EventSource("/events");
+        let deviceData = {};
+        let markers = {};
+
+        // Function to update the device markers on the map
+        const updateDeviceMap = () => {
+            const now = Date.now();
+
+            Object.keys(deviceData).forEach((deviceId) => {
+                const device = deviceData[deviceId];
+
+                // Remove markers for devices that haven't been updated in the last 5 seconds
+                if (now - device.timestamp > 5000) {
+                    if (markers[deviceId]) {
+                        map.removeLayer(markers[deviceId]);
+                        delete markers[deviceId];
+                    }
+                    delete deviceData[deviceId];
+                } else {
+                    // Update or add new markers
+                    const position = [device.lat, device.long];
+                    if (markers[deviceId]) {
+                        markers[deviceId].setLatLng(position);
+                    } else {
+                        markers[deviceId] = L.marker(position).addTo(map);
+                    }
+                }
+            });
+        };
+
+        // Handle incoming messages
+        eventSource.onmessage = function (event) {
+            // Parse the incoming message
+            const newData = JSON.parse(event.data);
+
+            // Update deviceData with new incoming data
+            newData.forEach((device) => {
+                deviceData[device.device_id] = {
+                    ...device,
+                    timestamp: Date.now(), // Mark the time of the update
+                };
+            });
+
+            updateDeviceMap();
+        };
+
+        // Handle any errors that occur
+        eventSource.onerror = function (error) {
+            console.error("EventSource failed:", error);
+            eventSource.close();
+        };
+
+        // Periodically update the device map to remove outdated devices
+        setInterval(updateDeviceMap, 5000);
+    </script>
+
+<h2>Start <code>rider-producer/main.py</code> to start real tracking</h2>
+<code>python rider-producer/main.py -riders=10</code>
 </body>
 </html>
